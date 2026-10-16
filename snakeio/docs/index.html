@@ -1,0 +1,1913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%235eead4'/><circle cx='11' cy='13' r='3' fill='white'/><circle cx='21' cy='13' r='3' fill='white'/><circle cx='11.8' cy='13.5' r='1.5' fill='%23111'/><circle cx='21.8' cy='13.5' r='1.5' fill='%23111'/></svg>">
+  <title>Gravity Snake</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* =================================================================
+       Design tokens
+       ================================================================= */
+    :root {
+      /* ---------------------------------------------------------------
+         "Obsidian" - near-black with a warm cast. One molten accent used
+         sparingly. Depth comes from value steps and a one-pixel lit top
+         edge; there is no glow, no gradient ground, no backdrop blur.
+         Token NAMES are unchanged so every rule below keeps working.
+         --------------------------------------------------------------- */
+      /* Surfaces */
+      --bg-base:     #0a0a0c;
+      --bg-deep:     #08080a;
+      --surface:     rgba(20, 20, 24, 0.92);
+      --surface-2:   rgba(28, 28, 34, 0.95);
+      --surface-3:   #232329;
+      --border:      rgba(255, 255, 255, 0.07);
+      --border-mid:  rgba(255, 255, 255, 0.13);
+      --border-hi:   rgba(255, 122, 26, 0.55);
+      /* Text */
+      --text:        #f6f4f1;
+      --text-soft:   #d6d2cc;
+      --text-muted:  #96928c;
+      --text-dim:    #6a6660;
+      /* Accents - teal was the brand accent, so it becomes the molten one.
+         The rest stay semantically separate but move warm/neutral. */
+      --teal:        #ff7a1a;
+      --teal-soft:   rgba(255, 122, 26, 0.14);
+      --teal-glow:   rgba(255, 122, 26, 0.20);
+      --violet:      #ffce8f;
+      --violet-soft: rgba(255, 206, 143, 0.13);
+      --violet-glow: rgba(255, 206, 143, 0.16);
+      --amber:       #ffb020;
+      --amber-soft:  rgba(255, 176, 32, 0.14);
+      --rose:        #f0533d;
+      --rose-soft:   rgba(240, 83, 61, 0.14);
+      --lime:        #4ade80;
+      --lime-soft:   rgba(74, 222, 128, 0.14);
+      /* Effects - flatter, tighter, no coloured haze */
+      --shadow-card: 0 10px 30px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4);
+      --shadow-pop:  0 18px 48px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.45);
+      --lit:         inset 0 1px 0 rgba(255,255,255,0.07);
+      --radius-sm:   4px;
+      --radius:      6px;
+      --radius-lg:   8px;
+      --radius-xl:   10px;
+      /* Motion */
+      --t-fast:      110ms cubic-bezier(0.4, 0, 0.2, 1);
+      --t-base:      180ms cubic-bezier(0.4, 0, 0.2, 1);
+      --t-slow:      320ms cubic-bezier(0.4, 0, 0.2, 1);
+      --mono:        'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    /* =================================================================
+       Reset + base
+       ================================================================= */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 500;
+      /* Flat ground. The radial gradient was the single loudest tell. */
+      background: var(--bg-base);
+      color: var(--text);
+      overflow: hidden;
+      cursor: crosshair;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .display { font-family: 'Sora', 'Manrope', sans-serif; letter-spacing: -0.03em; }
+
+    #game {
+      display: block;
+      position: fixed;
+      top: 0; left: 0;
+    }
+
+    /* =================================================================
+       Reusable button system
+       ================================================================= */
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 28px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      transition: transform var(--t-base), background var(--t-base),
+                  border-color var(--t-base), box-shadow var(--t-base), color var(--t-base);
+      user-select: none;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    .btn:hover { transform: translateY(-1px); background: var(--surface-3); border-color: var(--border-hi); }
+    .btn:active { transform: translateY(0) scale(0.98); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+    .btn-primary {
+      background: var(--teal);
+      border-color: transparent;
+      color: #062d2a;
+      font-weight: 700;
+      box-shadow: 0 8px 24px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .btn-primary:hover { background: var(--teal); color: #062d2a; box-shadow: 0 12px 36px var(--teal-glow), inset 0 1px 0 rgba(255,255,255,0.5); }
+    .btn-primary svg { stroke: #062d2a; }
+
+    .btn-violet {
+      background: var(--surface-2);
+      border-color: transparent;
+      color: #20104a;
+      font-weight: 700;
+      box-shadow: 0 8px 24px var(--violet-glow), inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .btn-violet:hover { background: var(--surface-3); color: #20104a; }
+    .btn-violet svg { stroke: #20104a; }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--border-mid);
+      color: var(--text-soft);
+    }
+    .btn-ghost:hover { background: var(--surface); color: var(--text); border-color: var(--border-hi); }
+
+    .btn-rose {
+      background: var(--surface-2);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(251,113,133,0.35);
+    }
+    .btn-rose:hover { background: var(--surface-3); }
+
+    .btn-sm { padding: 9px 18px; font-size: 13px; }
+    .btn-lg { padding: 16px 36px; font-size: 17px; font-weight: 700; }
+    .btn-block { width: 100%; }
+    .btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+
+    /* Compatibility: keep old .glass-btn working for any leftover refs */
+    .glass-btn { all: unset; }
+
+    /* =================================================================
+       Reusable input
+       ================================================================= */
+    .input, .select {
+      width: 100%;
+      padding: 14px 18px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius);
+      outline: none;
+      transition: border-color var(--t-base), box-shadow var(--t-base), background var(--t-base);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .input::placeholder { color: var(--text-dim); }
+    .input:focus, .select:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 4px var(--teal-soft);
+      background: var(--surface-2);
+    }
+    .select { appearance: none; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8.5L2 4.5h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 18px center;
+      padding-right: 40px;
+    }
+    .select option { background: #0a0a0c; color: var(--text); }
+
+    /* =================================================================
+       Animated background canvas — sits behind all menu screens
+       ================================================================= */
+    #menuBg {
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 1;
+      pointer-events: none;
+      filter: blur(0.5px) saturate(1.1);
+    }
+
+    /* =================================================================
+       Server status badge (top right)
+       ================================================================= */
+    #serverStatus {
+      position: fixed;
+      top: 16px; right: 16px;
+      z-index: 200;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      pointer-events: none;
+      transition: border-color var(--t-base);
+    }
+    #serverStatus svg { width: 14px; height: 14px; }
+    #serverStatus .status-text { text-transform: uppercase; font-size: 11px; }
+    #serverStatus.status-checking { border-color: rgba(251,191,36,0.4); }
+    #serverStatus.status-checking svg { color: var(--amber); animation: spin 1s linear infinite; }
+    #serverStatus.status-online   { border-color: rgba(255,122,26,0.4); }
+    #serverStatus.status-online   svg { color: var(--teal); }
+    #serverStatus.status-waking   { border-color: rgba(251,191,36,0.5); }
+    #serverStatus.status-waking   svg { color: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
+    #serverStatus.status-laggy    { border-color: rgba(251,191,36,0.4); }
+    #serverStatus.status-laggy    svg { color: var(--amber); }
+    #serverStatus.status-offline  { border-color: rgba(251,113,133,0.45); }
+    #serverStatus.status-offline  svg { color: var(--rose); }
+    @keyframes spin  { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* =================================================================
+       Screen base — every full-page screen uses .screen for consistency
+       ================================================================= */
+    .screen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      padding: 24px;
+      animation: fadeIn 0.32s var(--t-base);
+    }
+    .screen.show { display: flex !important; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Card container used in screens */
+    .panel {
+      width: 100%;
+      max-width: 460px;
+      padding: 36px 32px 32px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      box-shadow: var(--shadow-pop);
+      animation: panelIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .panel-wide { max-width: 720px; }
+    .panel-narrow { max-width: 380px; }
+
+    /* =================================================================
+       START SCREEN — the hero
+       ================================================================= */
+    #startScreen .panel {
+      max-width: 420px;
+      text-align: center;
+      padding: 40px 36px 32px;
+    }
+    .logo-wrap {
+      position: relative;
+      margin-bottom: 6px;
+    }
+    .logo {
+      font-family: 'Sora', sans-serif;
+      font-size: 72px;
+      font-weight: 700;
+      letter-spacing: -2px;
+      line-height: 1;
+      background: none;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 30px var(--teal-glow));
+      animation: logoPulse 4s ease-in-out infinite;
+    }
+    @keyframes logoPulse {
+      0%, 100% { filter: drop-shadow(0 0 20px var(--teal-glow)); }
+      50%      { filter: drop-shadow(0 0 40px var(--teal-glow)) drop-shadow(0 0 60px var(--violet-glow)); }
+    }
+    .logo-dot {
+      display: block;
+      color: var(--teal);
+      -webkit-text-fill-color: var(--teal);
+    }
+    .tagline {
+      color: var(--text-muted);
+      font-size: 13px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 8px;
+      margin-bottom: 28px;
+    }
+
+    .action-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .action-stack .input { font-size: 16px; }
+
+    /* Mode toggle (Classic vs Battle Royale, AI only) */
+    .mode-toggle {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 4px;
+    }
+    .mode-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 2px;
+      padding: 9px 5px;
+      font-family: inherit;
+      background: transparent;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: color var(--t-base), background var(--t-base);
+    }
+    .mode-tab:hover { color: var(--text-soft); background: var(--surface-2); }
+    .mode-tab.active {
+      color: #062d2a;
+      background: var(--teal);
+      box-shadow: 0 4px 14px var(--teal-glow);
+    }
+    .mode-tab.active .mode-tab-sub { color: rgba(6, 45, 42, 0.7); }
+    .mode-tab-title { font-size: 12px; font-weight: 800; letter-spacing: 0.2px; line-height: 1.15; }
+    .mode-tab-sub { font-size: 9px; font-weight: 600; letter-spacing: 0.4px; color: var(--text-dim); }
+
+    .online-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .online-dot {
+      width: 8px; height: 8px;
+      background: var(--lime);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--lime);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+    @keyframes dotPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .subtitle {
+      color: var(--text-dim);
+      margin-top: 18px;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+    .subtitle .key {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 0 2px;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 5px;
+      color: var(--text-soft);
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* =================================================================
+       ROOM SELECTION SCREEN
+       ================================================================= */
+    #roomScreen .panel { max-width: 540px; padding: 28px 24px; }
+    .screen-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .screen-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    .screen-title-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+    /* ============== ROOM BROWSER (modern, large) ============== */
+    #roomScreen .panel { max-width: 720px; padding: 28px 28px 24px; }
+
+    .room-filter-tabs {
+      display: flex;
+      gap: 4px;
+      margin: 14px 0 12px;
+      padding: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .filter-tab {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      padding: 9px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+    }
+    .filter-tab:hover { color: var(--text); }
+    .filter-tab.active {
+      background: linear-gradient(135deg, var(--teal-soft), rgba(255,122,26,0.05));
+      color: var(--teal);
+      box-shadow: 0 0 0 1px rgba(255,122,26,0.35), 0 2px 12px rgba(255,122,26,0.12);
+    }
+    .filter-tab.active.royale {
+      background: linear-gradient(135deg, var(--rose-soft), rgba(251,113,133,0.05));
+      color: var(--rose);
+      box-shadow: 0 0 0 1px rgba(251,113,133,0.4), 0 2px 12px rgba(251,113,133,0.15);
+    }
+    .filter-tab.active.team {
+      background: linear-gradient(135deg, var(--amber-soft), rgba(251,191,36,0.05));
+      color: var(--amber);
+      box-shadow: 0 0 0 1px rgba(251,191,36,0.35), 0 2px 12px rgba(251,191,36,0.12);
+    }
+
+    .room-search-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .room-search-bar:focus-within {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px var(--teal-soft);
+    }
+    .room-search-bar svg { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; }
+    .room-search-bar input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'Manrope', sans-serif;
+      font-size: 13px;
+    }
+    .room-search-bar input::placeholder { color: var(--text-muted); }
+    .room-search-bar .clear-search {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); padding: 2px 4px;
+      display: none;
+    }
+    .room-search-bar input:not(:placeholder-shown) ~ .clear-search { display: block; }
+
+    .room-list {
+      display: flex; flex-direction: column;
+      gap: 8px;
+      max-height: 52vh;
+      overflow-y: auto;
+      padding-right: 4px;
+      margin: 4px 0 18px;
+    }
+    .room-list::-webkit-scrollbar { width: 6px; }
+    .room-list::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+    .room-list::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+    .room-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px 14px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .room-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.025) 100%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    .room-card.mode-solo    { border-left-color: var(--teal); }
+    .room-card.mode-team    { border-left-color: var(--amber); }
+    .room-card.mode-royale  { border-left-color: var(--rose); }
+    .room-card:hover {
+      background: var(--surface-2);
+      transform: translateX(3px);
+      box-shadow: 0 6px 22px rgba(0,0,0,0.30);
+    }
+    .room-card:hover::before { opacity: 1; }
+    .room-card.full {
+      opacity: 0.42;
+      cursor: not-allowed;
+    }
+    .room-card.full:hover { transform: none; box-shadow: none; }
+
+    .room-mode-icon {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-family: 'Sora', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .room-mode-icon.mode-solo    { background: var(--teal-soft); color: var(--teal); }
+    .room-mode-icon.mode-team    { background: var(--amber-soft); color: var(--amber); }
+    .room-mode-icon.mode-royale  {
+      background: linear-gradient(135deg, var(--rose-soft), rgba(251,191,36,0.10));
+      color: var(--rose);
+      box-shadow: 0 0 14px rgba(251,113,133,0.18);
+    }
+    .room-mode-icon svg { width: 22px; height: 22px; }
+
+    .room-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .room-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .room-name {
+      font-size: 15px; font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .room-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    .room-meta .sep { color: var(--border-hi); }
+
+    .mode-badge {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .mode-badge.solo   { background: var(--teal-soft); color: var(--teal); border: 1px solid rgba(255,122,26,0.35); }
+    .mode-badge.team   { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(251,191,36,0.35); }
+    .mode-badge.custom { background: var(--violet-soft); color: var(--violet); border: 1px solid rgba(255,206,143,0.35); }
+    .mode-badge.royale { background: var(--rose-soft); color: var(--rose); border: 1px solid rgba(251,113,133,0.4); }
+    .mode-badge.live   {
+      background: rgba(251,113,133,0.15); color: var(--rose);
+      border: 1px solid rgba(251,113,133,0.45);
+      animation: pulseDot 1.4s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    .room-fill {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+      min-width: 70px;
+    }
+    .room-fill-count {
+      font-family: 'Sora', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: 0.3px;
+    }
+    .room-fill-count .max { color: var(--text-muted); font-weight: 600; }
+    .room-fill-bar {
+      width: 64px;
+      height: 4px;
+      background: var(--surface-2);
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .room-fill-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, var(--teal), #7dd3fc);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    .room-card.mode-royale .room-fill-bar-inner {
+      background: linear-gradient(90deg, var(--rose), #fbbf24);
+    }
+    .room-card.mode-team .room-fill-bar-inner {
+      background: linear-gradient(90deg, var(--amber), #fb923c);
+    }
+
+    .copy-code-pill {
+      background: rgba(255,206,143,0.12);
+      color: var(--violet);
+      border: 1px solid rgba(255,206,143,0.30);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      font-family: ui-monospace, monospace;
+      transition: all 0.15s ease;
+    }
+    .copy-code-pill:hover {
+      background: rgba(255,206,143,0.22);
+      transform: scale(1.04);
+    }
+
+    .room-empty {
+      text-align: center;
+      padding: 36px 18px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .room-empty-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    .room-loading {
+      text-align: center;
+      padding: 30px 18px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    .room-loading::after {
+      content: '...';
+      display: inline-block;
+      animation: dots 1.4s steps(4) infinite;
+      width: 14px;
+      text-align: left;
+    }
+    @keyframes dots {
+      0%, 100% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    .room-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .room-actions .spacer { flex: 1; }
+    .room-summary {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.4px;
+    }
+    .room-summary strong { color: var(--text); font-weight: 700; }
+
+    /* =================================================================
+       TEAM SELECT SCREEN
+       ================================================================= */
+    #teamScreen .panel { max-width: 580px; }
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 8px 0 20px;
+    }
+    .team-card {
+      padding: 18px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px;
+      transition: background var(--t-base), border-color var(--t-base),
+                  transform var(--t-fast);
+    }
+    .team-card:hover {
+      background: var(--surface-2);
+      border-color: var(--border-hi);
+      transform: translateY(-2px);
+    }
+    .team-card.full { opacity: 0.4; cursor: not-allowed; }
+    .team-color {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      box-shadow: 0 0 16px currentColor;
+      filter: brightness(1.1);
+    }
+    .team-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .team-count { font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; }
+
+    /* =================================================================
+       CREATE ROOM SCREEN
+       ================================================================= */
+    #createRoomScreen .panel { max-width: 420px; }
+    .form-stack { display: flex; flex-direction: column; gap: 14px; }
+    .field-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .field { display: flex; flex-direction: column; }
+
+    /* =================================================================
+       CUSTOMIZE / SKINS SCREEN
+       ================================================================= */
+    #skinScreen .panel { max-width: 620px; padding: 28px 24px; }
+    .skin-inner { display: contents; }
+    #skinPreview {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      height: 160px;
+      border-radius: var(--radius);
+      background: radial-gradient(ellipse at center, rgba(255,122,26,0.05) 0%, transparent 60%), var(--bg-deep);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: color var(--t-base), background var(--t-base);
+    }
+    .tab-btn:hover { color: var(--text-soft); }
+    .tab-btn.active {
+      color: #062d2a;
+      background: var(--teal);
+      box-shadow: 0 4px 12px var(--teal-glow);
+    }
+    .tab-panel { display: none; flex-direction: column; align-items: center; }
+    .tab-panel.active { display: flex; }
+
+    .skin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .skin-card {
+      aspect-ratio: 1 / 0.78;
+      padding: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px;
+      transition: background var(--t-base), border-color var(--t-base),
+                  transform var(--t-fast);
+    }
+    .skin-card:hover {
+      background: var(--surface-2);
+      border-color: var(--border-hi);
+      transform: translateY(-2px) scale(1.03);
+    }
+    .skin-card.selected {
+      border-color: var(--teal);
+      background: var(--teal-soft);
+      box-shadow: 0 0 0 1px var(--teal), 0 8px 24px var(--teal-glow);
+    }
+    .skin-dots { display: flex; gap: 3px; }
+    .skin-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(255,255,255,0.15);
+    }
+    .skin-name {
+      color: var(--text-soft);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .skin-card.selected .skin-name { color: var(--teal); }
+
+    /* Custom skin builder */
+    #customColors {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 8px;
+      width: 100%; max-width: 420px;
+      margin-bottom: 14px;
+    }
+    .custom-color-chip {
+      width: 32px; height: 32px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: transform var(--t-fast);
+    }
+    .custom-color-chip:hover { transform: scale(1.08); }
+    .color-builder-row {
+      display: flex; gap: 8px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .color-builder-row input[type="color"] {
+      width: 48px; height: 40px;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--surface);
+      padding: 4px;
+    }
+
+    .acc-card {
+      aspect-ratio: 1 / 0.95;
+      padding: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 4px;
+      transition: background var(--t-base), border-color var(--t-base),
+                  transform var(--t-fast);
+    }
+    .acc-card:hover { background: var(--surface-2); border-color: var(--border-hi); transform: translateY(-2px); }
+    .acc-card.selected {
+      border-color: var(--amber);
+      background: var(--amber-soft);
+      box-shadow: 0 0 0 1px var(--amber), 0 6px 20px rgba(251,191,36,0.25);
+    }
+    .acc-card canvas { pointer-events: none; }
+    .acc-card .acc-name {
+      color: var(--text-soft);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .acc-card.selected .acc-name { color: var(--amber); }
+
+    /* =================================================================
+       DEATH SCREEN
+       ================================================================= */
+    #deathScreen {
+      background: rgba(6, 8, 26, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    #deathScreen .panel { text-align: center; max-width: 400px; }
+    .death-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 44px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      background: linear-gradient(180deg, #fff 0%, #fb7185 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 20px rgba(251,113,133,0.5));
+      margin-bottom: 6px;
+    }
+    .death-score {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+      letter-spacing: 0.5px;
+    }
+    .death-score strong {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 700;
+      font-family: 'Sora', sans-serif;
+      margin-left: 6px;
+    }
+    .death-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 16px;
+      margin-bottom: 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .death-stat {
+      padding: 8px 0;
+      text-align: center;
+    }
+    .death-stat .stat-value {
+      font-family: 'Sora', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--teal);
+      line-height: 1;
+    }
+    .death-stat .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .death-actions { display: flex; gap: 10px; }
+
+    /* =================================================================
+       HUD (in-game)
+       ================================================================= */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 50;
+      display: none;
+    }
+    #leaderboard {
+      position: absolute;
+      top: 16px; right: 16px;
+      min-width: 220px;
+      padding: 14px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    #leaderboard h3 {
+      color: var(--text-muted);
+      font-family: 'Sora', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    #leaderboard .entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-soft);
+      font-size: 12px;
+      padding: 3px 0;
+    }
+    #leaderboard .entry .name {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      max-width: 130px;
+      font-weight: 500;
+    }
+    #leaderboard .entry .score {
+      font-family: ui-monospace, monospace;
+      font-weight: 700;
+      color: var(--text);
+    }
+    #leaderboard .entry.me { background: var(--teal-soft); border-radius: 6px; padding: 4px 8px; margin: -1px -4px; }
+    #leaderboard .entry.me .name,
+    #leaderboard .entry.me .score { color: var(--teal); }
+
+    #myScore {
+      position: absolute;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Sora', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+      letter-spacing: 1px;
+    }
+    #killCount {
+      position: absolute;
+      bottom: 54px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      font-weight: 500;
+    }
+    #minimap {
+      position: absolute;
+      bottom: 16px; right: 16px;
+      width: 150px; height: 150px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(12px);
+    }
+    #playerCount {
+      position: absolute;
+      top: 16px; left: 16px;
+      padding: 6px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text-soft);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      backdrop-filter: blur(12px);
+    }
+    #ping {
+      position: absolute;
+      top: 50px; left: 16px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+    }
+
+    /* =================================================================
+       Settings panel (gear icon)
+       ================================================================= */
+    #settingsBtn {
+      position: absolute;
+      top: 16px; left: 90px;
+      width: 32px; height: 32px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 50%;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 16px;
+      pointer-events: all;
+      backdrop-filter: blur(12px);
+      transition: color var(--t-base), border-color var(--t-base), transform var(--t-base);
+    }
+    #settingsBtn:hover { color: var(--teal); border-color: var(--teal); transform: rotate(45deg); }
+
+    #settingsPanel {
+      position: absolute;
+      top: 60px; left: 16px;
+      width: 340px; max-height: 80vh;
+      padding: 18px 20px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(20px);
+      pointer-events: all;
+      display: none;
+      overflow-y: auto;
+      box-shadow: var(--shadow-card);
+    }
+    #settingsPanel h4 {
+      font-family: 'Sora', sans-serif;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      letter-spacing: 0.4px;
+    }
+    #settingsPanel h5 {
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 18px 0 10px;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      color: var(--text-soft);
+      font-size: 13px;
+    }
+    .setting-toggle {
+      width: 36px; height: 20px;
+      border-radius: 999px;
+      background: var(--border);
+      border: 1px solid var(--border-mid);
+      cursor: pointer;
+      position: relative;
+      transition: background var(--t-base), border-color var(--t-base);
+    }
+    .setting-toggle.on { background: var(--teal); border-color: var(--teal); }
+    .setting-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      transition: left var(--t-base);
+    }
+    .setting-toggle.on::after { left: 18px; }
+
+    /* Server badges inside settings */
+    .server-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    .server-badge.active   { background: var(--lime-soft); color: var(--lime); }
+    .server-badge.inactive { background: var(--surface); color: var(--text-muted); }
+    .mini-btn {
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      border: 1px solid var(--teal);
+      border-radius: 8px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      cursor: pointer;
+      transition: background var(--t-base);
+    }
+    .mini-btn:hover { background: rgba(255,122,26,0.28); }
+    .mini-btn.warn { border-color: var(--amber); background: var(--amber-soft); color: var(--amber); }
+    .mini-btn.warn:hover { background: rgba(251,191,36,0.28); }
+    .mini-btn.pink { border-color: var(--violet); background: var(--violet-soft); color: var(--violet); }
+    .mini-btn.pink:hover { background: rgba(255,206,143,0.28); }
+    .hint {
+      font-size: 11px;
+      color: var(--text-soft);
+      line-height: 1.6;
+      padding: 10px 12px;
+      border-left: 3px solid var(--teal);
+      background: var(--teal-soft);
+      border-radius: 0 8px 8px 0;
+      margin: 8px 0;
+    }
+    .hint code {
+      background: var(--surface-3);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      color: var(--teal);
+    }
+    .hint a { color: var(--teal); }
+
+    /* Kill feed */
+    #killFeedContainer {
+      position: absolute;
+      top: 60px; left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Copy code button */
+    .copy-code-btn {
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid var(--violet);
+      border-radius: 999px;
+      background: var(--violet-soft);
+      color: var(--violet);
+      cursor: pointer;
+      margin-left: 8px;
+      pointer-events: all;
+      transition: background var(--t-base);
+    }
+    .copy-code-btn:hover { background: rgba(255,206,143,0.3); }
+
+    /* Emote wheel */
+    .emote-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+    .emote-btn {
+      position: absolute;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      border: 1px solid var(--border-hi);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow-card);
+      transition: transform var(--t-fast), border-color var(--t-base), color var(--t-base);
+    }
+    .emote-btn:hover { transform: scale(1.12); border-color: var(--teal); color: var(--teal); }
+
+    /* =================================================================
+       LOADING SCREEN (multiplayer cold start)
+       ================================================================= */
+    #loadingScreen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      background: var(--bg-base);
+    }
+    #loadingScreen .load-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--teal);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .load-bar {
+      width: 220px;
+      height: 4px;
+      background: var(--surface);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #loadingBar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--teal), var(--violet));
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+    .load-sub {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 14px;
+      letter-spacing: 0.5px;
+    }
+
+    /* =================================================================
+       Responsive tweaks
+       ================================================================= */
+    @media (max-width: 540px) {
+      .logo { font-size: 56px; }
+      .panel { padding: 28px 22px 24px; }
+      #leaderboard { min-width: 180px; top: 60px; }
+      #serverStatus { top: 12px; right: 12px; padding: 6px 10px; }
+      #minimap { width: 110px; height: 110px; }
+    }
+
+    /* =================================================================
+       Obsidian finishing pass
+       Hard edges, a lit top pixel instead of a glow, and exactly one
+       saturated control per screen. Appended last so it wins cleanly.
+       ================================================================= */
+    .panel, .room-card, .btn, .skin-card, .team-card, .acc-card,
+    #leaderboard, #myScore, #playerCount, #ping, #minimap, #settingsPanel {
+      box-shadow: var(--lit), var(--shadow-card);
+    }
+    .btn, .room-card, .skin-card, .team-card, .acc-card, .field, .input, .select {
+      border-radius: var(--radius);
+    }
+    .panel { border-radius: var(--radius-lg); }
+    /* Kill every coloured halo - depth is value, not light. */
+    .btn-primary, .btn-primary:hover, .btn-violet, .btn-violet:hover,
+    .btn-rose, .btn-rose:hover, .room-card:hover, .skin-card.selected,
+    .mode-tab.active, .filter-tab.active, .logo {
+      text-shadow: none;
+    }
+    .btn-primary {
+      background: var(--teal);
+      border-color: #ff9440;
+      color: #170a00;
+      font-weight: 700;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), var(--shadow-card);
+    }
+    .btn-primary:hover { background: #ff9440; border-color: #ffa75e; }
+    .btn-primary svg { stroke: currentColor; }
+    /* Secondary actions go quiet so the primary is the only lit thing. */
+    .btn-violet, .btn-rose {
+      background: var(--surface-2);
+      border-color: var(--border-mid);
+      color: var(--text);
+      box-shadow: var(--lit), var(--shadow-card);
+    }
+    .btn-violet:hover, .btn-rose:hover { background: var(--surface-3); }
+    .btn-violet svg { stroke: currentColor; }
+    /* Data reads as data. */
+    #myScore, #ping, #playerCount, .room-fill-count, .team-count,
+    .death-stat .stat-value, .server-badge, .mode-badge, .skin-name,
+    .acc-card .acc-name, .hint code, .copy-code-pill, .copy-code-btn {
+      font-family: var(--mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .logo { font-size: clamp(42px, 7vw, 68px); line-height: 0.94; letter-spacing: -0.042em; }
+    .tagline { letter-spacing: 0; text-transform: none; font-weight: 500; font-size: 14.5px; }
+    #leaderboard .entry.me, #leaderboard .entry.me .score { color: var(--teal); }
+    #myScore { color: var(--teal); }
+    body { cursor: crosshair; }
+    .logo {
+      background: none !important;
+      -webkit-background-clip: initial !important;
+      background-clip: initial !important;
+      -webkit-text-fill-color: var(--text) !important;
+      color: var(--text) !important;
+      text-shadow: none !important;
+      filter: none !important;
+    }
+    .logo .logo-dot { -webkit-text-fill-color: var(--teal) !important; color: var(--teal) !important; }
+    .mode-tab.active { background: var(--surface-3) !important; border-color: var(--border-hi) !important; box-shadow: var(--lit) !important; }
+    .mode-tab.active .mode-tab-title { color: var(--teal) !important; }
+    /* The server-status pill sits top-right; the leaderboard has to clear it. */
+    #leaderboard { top: 54px; }
+    @media (max-width: 540px) { #leaderboard { top: 50px; } }
+  </style>
+</head>
+<body>
+
+  <canvas id="game"></canvas>
+
+  <!-- Animated background canvas (shown behind menus) -->
+  <canvas id="menuBg"></canvas>
+
+  <!-- Server status badge (top right) -->
+  <div id="serverStatus" class="status-checking">
+    <svg id="statusIcon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 8 1.5 A 6.5 6.5 0 0 1 14.5 8" />
+    </svg>
+    <span class="status-text" id="statusText">Checking</span>
+    <span id="statusPing" style="opacity:0.6;font-size:11px;font-family:ui-monospace,monospace;"></span>
+  </div>
+
+  <!-- Loading overlay for multiplayer cold start -->
+  <div id="loadingScreen">
+    <div class="load-title">Connecting</div>
+    <div class="load-bar"><div id="loadingBar"></div></div>
+    <div class="load-sub">Waking up server&hellip;</div>
+  </div>
+
+  <!-- =================================================================
+       HOME SCREEN
+       ================================================================= -->
+  <div id="startScreen" class="screen show">
+    <div class="panel">
+      <div class="logo-wrap">
+        <div class="logo display">GRAVITY<span class="logo-dot">SNAKE</span></div>
+      </div>
+      <p class="tagline">Eat &middot; Grow &middot; Dominate</p>
+
+      <div class="action-stack">
+        <input type="text" id="nameInput" class="input" placeholder="Your name" maxlength="16" autofocus>
+
+        <button class="btn btn-primary btn-lg btn-block" id="multiplayerBtn">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg>
+          MULTIPLAYER
+        </button>
+
+        <button class="btn btn-ghost btn-block" id="playAIBtn">
+          <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/></svg>
+          PLAY VS AI
+        </button>
+
+        <!-- AI mode selector (Classic / Battle Royale / Zone Domination) -->
+        <div class="mode-toggle">
+          <button class="mode-tab active" id="classicModeBtn" type="button">
+            <span class="mode-tab-title">Classic</span>
+            <span class="mode-tab-sub">Eat &middot; Grow</span>
+          </button>
+          <button class="mode-tab" id="royaleModeBtn" type="button">
+            <span class="mode-tab-title">Battle Royale</span>
+            <span class="mode-tab-sub">Last alive</span>
+          </button>
+          <button class="mode-tab" id="dominationModeBtn" type="button">
+            <span class="mode-tab-title">Zone Domination</span>
+            <span class="mode-tab-sub">Capture &middot; Hold</span>
+          </button>
+          <button class="mode-tab" id="ctfModeBtn" type="button">
+            <span class="mode-tab-title">Capture the Orb</span>
+            <span class="mode-tab-sub">Steal &middot; Deliver</span>
+          </button>
+        </div>
+
+        <div class="online-indicator">
+          <span class="online-dot"></span>
+          <span id="onlineCount">-- online</span>
+        </div>
+
+        <button class="btn btn-ghost btn-block" id="skinsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Artist's palette: classic "customize" icon -->
+            <circle cx="13.5" cy="6.5" r="1.5"/>
+            <circle cx="17.5" cy="10.5" r="1.5"/>
+            <circle cx="8.5" cy="7.5" r="1.5"/>
+            <circle cx="6.5" cy="12.5" r="1.5"/>
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.72 1.5-1.5 0-.39-.15-.74-.39-1-.24-.27-.39-.62-.39-1 0-.78.72-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-10-10-10z"/>
+          </svg>
+          SKINS &amp; ACCESSORIES
+        </button>
+      </div>
+
+      <p class="subtitle">
+        <span class="key">Mouse</span> steer &middot;
+        <span class="key">Space</span> boost
+      </p>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       ROOM SELECT
+       ================================================================= -->
+  <div id="roomScreen" class="screen">
+    <div class="panel">
+      <div class="screen-header">
+        <div>
+          <div class="screen-title display">Browse Matches</div>
+          <div class="screen-title-sub">Pick a room or host your own</div>
+        </div>
+      </div>
+      <!-- Filter tabs by mode -->
+      <div class="room-filter-tabs" id="roomFilterTabs">
+        <button class="filter-tab active" data-filter="all">All</button>
+        <button class="filter-tab" data-filter="solo">Solo</button>
+        <button class="filter-tab royale" data-filter="royale">Battle Royale</button>
+        <button class="filter-tab team" data-filter="team">Team</button>
+        <button class="filter-tab" data-filter="domination">Domination</button>
+        <button class="filter-tab" data-filter="ctf">Capture</button>
+      </div>
+      <!-- Search -->
+      <div class="room-search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4-4"/></svg>
+        <input type="text" id="roomSearch" placeholder="Search room name or code..." autocomplete="off">
+        <button class="clear-search" id="roomSearchClear" title="Clear">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <!-- Room list -->
+      <div class="room-list" id="roomList">
+        <div class="room-loading">Searching for matches</div>
+      </div>
+      <!-- Footer actions -->
+      <div class="room-actions">
+        <button class="btn btn-ghost btn-sm" id="roomBackBtn">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+          Back
+        </button>
+        <div class="room-summary" id="roomSummary"></div>
+        <div class="spacer"></div>
+        <button class="btn btn-primary btn-sm" id="createRoomBtn">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Create Room
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       TEAM SELECT
+       ================================================================= -->
+  <div id="teamScreen" class="screen">
+    <div class="panel">
+      <div class="screen-header">
+        <div>
+          <div class="screen-title display">Pick Your Team</div>
+          <div class="screen-title-sub">Choose a color to fight alongside</div>
+        </div>
+      </div>
+      <div class="team-grid" id="teamGrid"></div>
+      <button class="btn btn-ghost btn-sm" id="teamBackBtn">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </button>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       CREATE ROOM
+       ================================================================= -->
+  <div id="createRoomScreen" class="screen">
+    <div class="panel panel-narrow">
+      <div class="screen-header">
+        <div>
+          <div class="screen-title display">Create Room</div>
+          <div class="screen-title-sub">Set the mode and invite friends</div>
+        </div>
+      </div>
+      <div class="form-stack">
+        <div class="field">
+          <div class="field-label">Room name</div>
+          <input type="text" id="roomNameInput" class="input" placeholder="e.g. epic-battles" maxlength="24">
+        </div>
+        <div class="field">
+          <div class="field-label">Game mode</div>
+          <select id="roomModeSelect" class="select">
+            <option value="solo" selected>Normal &mdash; Free for All</option>
+            <option value="team">Team Battle</option>
+            <option value="royale">Battle Royale &mdash; Last snake standing</option>
+            <option value="domination">Zone Domination &mdash; Capture &amp; hold zones</option>
+            <option value="ctf">Capture the Orb &mdash; Steal &amp; deliver</option>
+          </select>
+        </div>
+        <div class="field" id="teamSizeField" style="display:none;">
+          <div class="field-label">Team size</div>
+          <select id="roomTeamSizeSelect" class="select">
+            <option value="2">2 players per team</option>
+            <option value="3">3 players per team</option>
+          </select>
+        </div>
+        <div class="field" id="domTeamsField" style="display:none;">
+          <div class="field-label">Number of teams</div>
+          <select id="roomDomTeams" class="select">
+            <option value="2" selected>2 teams &mdash; tug of war</option>
+            <option value="3">3 teams &mdash; free-for-all</option>
+            <option value="4">4 teams &mdash; four corners</option>
+          </select>
+        </div>
+        <!-- BR-only settings panel ----------------------------------------->
+        <div id="brSettingsPanel" style="display:none;">
+          <div style="
+            background: rgba(251,113,133,0.08);
+            border: 1px solid rgba(251,113,133,0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            color: #fecdd3;
+            line-height: 1.5;
+          ">
+            <strong style="color:#fb7185;letter-spacing:0.4px;">⚠ NO RESPAWN</strong><br>
+            20 snakes drop in. Zone shrinks in phases. Last snake standing
+            wins the Victory Royale. Match locks once it starts.
+          </div>
+          <div class="field">
+            <div class="field-label">Starting zone size</div>
+            <select id="brStartSize" class="select">
+              <option value="max" selected>Max &mdash; full map (slow burn)</option>
+              <option value="large">Large &mdash; ~3/4 map</option>
+              <option value="medium">Medium &mdash; ~1/2 map</option>
+              <option value="tight">Tight &mdash; quick brawl</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">Phase speed</div>
+            <select id="brPhaseSpeed" class="select">
+              <option value="slow">Slow &mdash; long games</option>
+              <option value="normal" selected>Normal</option>
+              <option value="fast">Fast &mdash; quick matches</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">AI difficulty</div>
+            <select id="brBotDifficulty" class="select">
+              <option value="easy">Easy &mdash; mostly easy bots</option>
+              <option value="mixed" selected>Mixed &mdash; full range</option>
+              <option value="hard">Hard &mdash; tough fight</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">Mega orbs</div>
+            <select id="brMegaOrbs" class="select">
+              <option value="few">Few &mdash; pure skill</option>
+              <option value="normal" selected>Normal</option>
+              <option value="many">Many &mdash; loot fest</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button class="btn btn-ghost btn-sm" id="createRoomBackBtn" style="flex:1;">Back</button>
+          <button class="btn btn-primary btn-sm" id="createRoomSubmit" style="flex:2;">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       CUSTOMIZE / SKINS
+       ================================================================= -->
+  <div id="skinScreen" class="screen">
+    <div class="panel">
+      <div class="screen-header">
+        <div>
+          <div class="screen-title display">Customize</div>
+          <div class="screen-title-sub">Personalize your snake</div>
+        </div>
+      </div>
+      <canvas id="skinPreview" width="400" height="140"></canvas>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('skinsTab',this)">Skins</button>
+        <button class="tab-btn" onclick="switchTab('accessoriesTab',this)">Accessories</button>
+        <button class="tab-btn" onclick="switchTab('createTab',this)">Create</button>
+      </div>
+      <div class="tab-panel active" id="skinsTab">
+        <div class="skin-grid" id="skinGrid"></div>
+      </div>
+      <div class="tab-panel" id="accessoriesTab">
+        <div class="skin-grid" id="accessoryGrid" style="grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));"></div>
+      </div>
+      <div class="tab-panel" id="createTab">
+        <p style="color:var(--text-muted);margin-bottom:14px;font-size:12px;text-align:center;letter-spacing:0.3px;">
+          Pick up to 8 colors for your custom skin
+        </p>
+        <div id="customColors"></div>
+        <div class="color-builder-row">
+          <input type="color" id="colorPicker" value="var(--teal)">
+          <button class="btn btn-primary btn-sm" id="addColorBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add
+          </button>
+          <button class="btn btn-ghost btn-sm" id="clearColorsBtn">Clear</button>
+        </div>
+        <button class="btn btn-violet btn-sm" id="applyCustomSkin">Apply Custom Skin</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="skinBackBtn" style="margin-top:16px;align-self:center;">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+      </button>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       DEATH SCREEN
+       ================================================================= -->
+  <div id="deathScreen" class="screen">
+    <div class="panel">
+      <div class="death-title display" id="deathTitle">YOU DIED</div>
+      <div id="brRankBadge" style="
+        display: none;
+        margin: 0 auto 14px;
+        padding: 8px 16px;
+        background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(251,113,133,0.15));
+        border: 1px solid rgba(251,191,36,0.5);
+        border-radius: 999px;
+        font-family: 'Sora', sans-serif;
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 0.6px;
+        color: #fbbf24;
+        text-align: center;
+        width: fit-content;
+      "></div>
+      <div class="death-score">Score <strong id="finalScore">0</strong></div>
+      <div class="death-stats">
+        <div class="death-stat"><div class="stat-value" id="statTime">0:00</div><div class="stat-label">Time Alive</div></div>
+        <div class="death-stat"><div class="stat-value" id="statFood">0</div><div class="stat-label">Food Eaten</div></div>
+        <div class="death-stat"><div class="stat-value" id="statKills">0</div><div class="stat-label">Kills</div></div>
+        <div class="death-stat"><div class="stat-value" id="statPeak">0</div><div class="stat-label">Peak Score</div></div>
+      </div>
+      <div class="death-actions">
+        <button class="btn btn-primary btn-block" id="respawnBtn">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 17.2-4M21 5v4h-4M21 12a9 9 0 0 1-17.2 4M3 19v-4h4"/></svg>
+          Play Again
+        </button>
+        <button class="btn btn-violet btn-block" id="spectateBtn" style="display:none;">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Spectate Match
+        </button>
+        <button class="btn btn-ghost btn-sm" id="mainMenuBtn">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       HUD (in-game)
+       ================================================================= -->
+  <div id="hud">
+    <div id="leaderboard">
+      <h3>Leaderboard</h3>
+      <div id="leaderboardEntries"></div>
+    </div>
+    <div id="myScore">Score: 0</div>
+    <div id="killCount"></div>
+    <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="playerCount">Players: 0</div>
+    <div id="ping"></div>
+
+    <!-- Leave button — tiny icon, top-left corner, hover-reveals tint -->
+    <button id="leaveBtn" style="
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 32px;
+      height: 32px;
+      background: rgba(10, 12, 28, 0.55);
+      color: rgba(241, 245, 249, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: all 0.18s ease;
+      z-index: 100;
+    " title="Leave to home menu">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+    </button>
+
+    <button id="settingsBtn" title="Settings">&#9881;</button>
+    <div id="settingsPanel">
+      <h4>Settings</h4>
+      <div class="setting-row"><span>Grid</span><div class="setting-toggle on" data-setting="showGrid"></div></div>
+      <div class="setting-row"><span>Particles</span><div class="setting-toggle on" data-setting="showParticles"></div></div>
+      <div class="setting-row"><span>Screen Shake</span><div class="setting-toggle on" data-setting="showShake"></div></div>
+
+      <h5>Multiplayer Server</h5>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <span style="font-size:11px;color:var(--text-muted);">Active:</span>
+        <span class="server-badge" id="activeServerBadge">—</span>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border);">
+        <div>
+          <div style="font-size:11px;color:var(--text);font-weight:600;">Default (Render)</div>
+          <div style="font-size:10px;color:var(--text-muted);">Oregon &middot; always available</div>
+        </div>
+        <span class="server-badge inactive" id="defaultStatus">—</span>
+      </div>
+
+      <div style="padding:10px 0;border-bottom:1px dashed var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--text);font-weight:600;">Custom (self-hosted)</div>
+          <span class="server-badge inactive" id="customStatus">—</span>
+        </div>
+        <input type="text" id="customServerInput" class="input" style="padding:8px 12px;font-size:11px;" placeholder="https://snakeio-yourname.loca.lt">
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button id="customServerSave" class="mini-btn" style="flex:1;">Save</button>
+          <button id="customServerClear" class="mini-btn warn" style="flex:1;">Remove</button>
+        </div>
+      </div>
+
+      <div id="shareSection" style="padding:10px 0;display:none;">
+        <div style="font-size:11px;color:var(--text);font-weight:600;margin-bottom:4px;">Share with friends</div>
+        <div class="hint">Friends open this link and auto-connect. No typing needed.</div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <input type="text" id="shareLinkInput" class="input" style="padding:8px 12px;font-size:10px;border-color:var(--violet);color:var(--violet);" readonly>
+          <button id="copyShareLink" class="mini-btn pink">Copy</button>
+        </div>
+      </div>
+
+      <div style="padding:10px 0;">
+        <button id="toggleHostGuide" class="mini-btn" style="width:100%;">How to host your own server &rarr;</button>
+        <div id="hostGuide" style="display:none;margin-top:12px;">
+          <div class="hint">
+            <strong style="color:var(--teal);">Why host?</strong> Your server = low ping for you and your friends.
+          </div>
+          <div class="hint">
+            <strong style="color:var(--teal);">Setup (5 min, one time):</strong><br>
+            1. Install <a href="https://nodejs.org/en/download" target="_blank">Node.js</a><br>
+            2. <code>git clone https://github.com/gravityst/snake.io.git</code><br>
+            3. <code>cd snake.io &amp;&amp; npm install</code>
+          </div>
+          <div class="hint">
+            <strong style="color:var(--teal);">Run each time you play:</strong><br>
+            <code>SUBDOMAIN=yourname npm run host</code><br>
+            <span style="color:var(--text-muted);">(Windows: <code>set SUBDOMAIN=yourname &amp;&amp; npm run host</code>)</span><br><br>
+            Your URL: <code>https://snakeio-yourname.loca.lt</code>
+          </div>
+          <div class="hint">
+            <strong style="color:var(--teal);">Then:</strong> Paste the URL above &rarr; Save.
+            Saved forever &mdash; next time you host, game auto-switches.
+          </div>
+          <a href="https://github.com/gravityst/snake.io/blob/main/HOSTING.md" target="_blank" class="mini-btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">
+            Full instructions &nearr;
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div id="killFeedContainer"></div>
+  </div>
+
+  <!-- Emote wheel -->
+  <div id="chatWheel" style="position:fixed;top:0;left:0;right:0;bottom:0;display:none;z-index:90;pointer-events:all;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);">
+    <div class="emote-ring" id="emoteRing"></div>
+    <div style="position:absolute;bottom:60px;left:50%;transform:translateX(-50%);color:var(--text-muted);font-size:12px;letter-spacing:0.5px;">
+      <span class="key" style="display:inline-block;padding:2px 8px;background:var(--surface);border:1px solid var(--border-mid);border-radius:5px;color:var(--text-soft);font-family:ui-monospace,monospace;font-size:11px;font-weight:600;">Tab</span>
+      or click outside to close
+    </div>
+  </div>
+
+  <script>
+    // ====================================================================
+    // Compatibility shim: existing game.js toggles screens via
+    // .style.display = 'flex' | 'none'. The new design also adds a `.show`
+    // class for the animation, so wrap display setters to keep parity.
+    // ====================================================================
+    (() => {
+      const screenIds = ['startScreen','roomScreen','teamScreen','createRoomScreen','skinScreen','deathScreen'];
+      screenIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // Mirror inline display changes into the .show class. CRITICAL: when
+        // style.display is the empty string (no inline style), keep the
+        // HTML-default class alone — otherwise we'd strip the initial
+        // `class="screen show"` from the home screen on load → blank page.
+        const sync = () => {
+          const d = el.style.display;
+          if (d === 'none') el.classList.remove('show');
+          else if (d) el.classList.add('show');
+        };
+        new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['style'] });
+      });
+    })();
+
+    // Show/hide the team-size field when mode select changes
+    (() => {
+      const modeSel = document.getElementById('roomModeSelect');
+      const sizeField = document.getElementById('teamSizeField');
+      if (!modeSel || !sizeField) return;
+      const update = () => { sizeField.style.display = modeSel.value === 'team' ? '' : 'none'; };
+      modeSel.addEventListener('change', update);
+      update();
+    })();
+  </script>
+  <script src="local-game.js?v=52"></script>
+  <script src="game.js?v=52"></script>
+</body>
+</html>
