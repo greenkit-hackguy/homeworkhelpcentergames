@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>muddy heights 2</title>
+  <style>
+    html, body {
+      padding: 0;
+      margin: 0;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    #unity-container {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #unity-canvas {
+      background: #231f20;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    #unity-loading-bar {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      color: white;
+      font-family: sans-serif;
+      z-index: 10;
+      text-align: center;
+    }
+    #unity-progress-bar-empty {
+      width: 200px;
+      height: 18px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 10px;
+      margin: 10px auto 0;
+      overflow: hidden;
+    }
+    #unity-progress-bar-full {
+      width: 0%;
+      height: 100%;
+      background: #fff;
+    }
+    #unity-warning {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-family: sans-serif;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="unity-loading-bar">
+      <div id="unity-logo">Loading Muddy Heights 2...</div>
+      <div id="unity-progress-bar-empty">
+        <div id="unity-progress-bar-full"></div>
+      </div>
+    </div>
+    <div id="unity-warning"></div>
+  </div>
+
+  <script>
+    var container = document.querySelector("#unity-container");
+    var canvas = document.querySelector("#unity-canvas");
+    var loadingBar = document.querySelector("#unity-loading-bar");
+    var progressBarFull = document.querySelector("#unity-progress-bar-full");
+    var warningBanner = document.querySelector("#unity-warning");
+
+    function unityShowBanner(msg, type) {
+      function updateBannerVisibility() {
+        warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+      }
+      var div = document.createElement('div');
+      div.innerHTML = msg;
+      warningBanner.appendChild(div);
+      if (type == 'error') div.style = 'background: red; padding: 10px;';
+      else {
+        if (type == 'warning') div.style = 'background: yellow; color: black; padding: 10px;';
+        setTimeout(function() {
+          warningBanner.removeChild(div);
+          updateBannerVisibility();
+        }, 5000);
+      }
+      updateBannerVisibility();
+    }
+
+    // CDN base for muddy-heights-testing-2
+    var buildUrl = "https://cdn.jsdelivr.net/gh/gabadagabadgoo/muddy-heights-testing-2@main";
+
+    var config = {
+      // We'll set dataUrl and codeUrl to blob URLs after merging
+      dataUrl: "",
+      codeUrl: "",
+      frameworkUrl: buildUrl + "/Muddy%20Heights%202.framework.js",
+      streamingAssetsUrl: buildUrl + "/StreamingAssets",
+      companyName: "DefaultCompany",
+      productName: "Muddy Heights 2",
+      productVersion: "",
+      showBanner: unityShowBanner,
+    };
+
+    loadingBar.style.display = "block";
+
+    // Fetch a single URL and return its ArrayBuffer
+    async function fetchBuffer(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch: " + url + " (" + response.status + ")");
+      return await response.arrayBuffer();
+    }
+
+    // Merge multiple file parts into a single blob URL
+    async function mergeFileParts(parts) {
+      const buffers = await Promise.all(parts.map(url => fetchBuffer(url)));
+      const blob = new Blob(buffers);
+      return URL.createObjectURL(blob);
+    }
+
+    (async function main() {
+      try {
+        progressBarFull.style.width = "0%";
+
+        // Merge the 3 split data files
+        var dataParts = [
+          buildUrl + "/Muddy%20Heights%202(1).data",
+          buildUrl + "/Muddy%20Heights%202(2).data",
+          buildUrl + "/Muddy%20Heights%202(3).data"
+        ];
+        var mergedDataUrl = await mergeFileParts(dataParts);
+        config.dataUrl = mergedDataUrl;
+
+        // Merge the 6 split wasm files
+        var wasmParts = [
+          buildUrl + "/Muddy%20Heights%202(1).wasm",
+          buildUrl + "/Muddy%20Heights%202(2).wasm",
+          buildUrl + "/Muddy%20Heights%202(3).wasm",
+          buildUrl + "/Muddy%20Heights%202(4).wasm",
+          buildUrl + "/Muddy%20Heights%202(5).wasm",
+          buildUrl + "/Muddy%20Heights%202(6).wasm"
+        ];
+        var mergedWasmUrl = await mergeFileParts(wasmParts);
+        config.codeUrl = mergedWasmUrl;
+
+        // Load the Unity loader script
+        var loaderUrl = buildUrl + "/Muddy%20Heights%202.loader.js";
+        var script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = function() {
+          // createUnityInstance is injected by the loader
+          createUnityInstance(canvas, config, function(progress) {
+            progressBarFull.style.width = (100 * progress) + "%";
+          }).then(function(unityInstance) {
+            loadingBar.style.display = "none";
+          }).catch(function(message) {
+            unityShowBanner(message, 'error');
+          });
+        };
+        script.onerror = function() {
+          unityShowBanner("Failed to load Unity loader from " + loaderUrl, 'error');
+        };
+        document.body.appendChild(script);
+      } catch (err) {
+        unityShowBanner("Error merging split files: " + err.message, 'error');
+      }
+    })();
+  </script>
+</body>
+</html>
